@@ -102,6 +102,11 @@ export type FormState = {
   fieldErrors?: Partial<Record<keyof ContactInput, string>>;
   /** Echo of the submitted values so the form survives a failed round trip. */
   values?: Partial<Record<keyof ContactInput, string>>;
+  /** Echo of the submitted address rows, in the order they were entered. */
+  addresses?: AddressFormValues[];
 };
+
+/** One address row as it comes off the form, before validation. */
+export type AddressFormValues = Record<keyof AddressInput, string>;
 
 export const EMPTY_FORM_STATE: FormState = { status: "idle" };

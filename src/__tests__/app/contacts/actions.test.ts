@@ -1,8 +1,9 @@
 import { http, HttpResponse } from "msw";
 import { saveContactAction } from "@/app/contacts/actions";
+import { addressFieldName } from "@/lib/contacts/schema";
 import { EMPTY_FORM_STATE, type ContactWrite } from "@/lib/contacts/types";
 import { server } from "../../mocks/server";
-import { api, makeAddress, makeContact } from "../../mocks/handlers";
+import { api, makeContact } from "../../mocks/handlers";
 
 jest.mock("next/cache", () => ({ revalidatePath: jest.fn() }));
 jest.mock("next/navigation", () => ({
@@ -20,23 +21,19 @@ function validForm(): FormData {
   formData.set("first_name", "Ada");
   formData.set("last_name", "Lovelace");
   formData.set("email", "ada@example.com");
+  formData.set(addressFieldName(0, "type"), "Work");
+  formData.set(addressFieldName(0, "street"), "2 Office Way");
+  formData.set(addressFieldName(0, "city"), "San Francisco");
+  // The spare row the form always renders: type selected, nothing typed.
+  formData.set(addressFieldName(1, "type"), "Home");
+  formData.set(addressFieldName(1, "street"), "");
   return formData;
 }
 
 describe("saveContactAction", () => {
-  it("carries the contact's existing addresses through the PUT", async () => {
+  it("sends the form's address rows as the full list on PUT, dropping blanks", async () => {
     let putBody: ContactWrite | undefined;
     server.use(
-      http.get(api("/api/v1/contacts/:id"), () =>
-        HttpResponse.json(
-          makeContact({
-            addresses: [
-              makeAddress({ id: 7, type: "Home" }),
-              makeAddress({ id: 8, type: "Work", street: "2 Office Way" }),
-            ],
-          }),
-        ),
-      ),
       http.put(api("/api/v1/contacts/:id"), async ({ request }) => {
         putBody = (await request.json()) as ContactWrite;
         return HttpResponse.json(makeContact());
@@ -48,33 +45,42 @@ describe("saveContactAction", () => {
     ).rejects.toThrow("redirect:/contacts/1");
 
     expect(putBody?.addresses).toEqual([
-      expect.objectContaining({ type: "Home", street: "1 Market St" }),
-      expect.objectContaining({ type: "Work", street: "2 Office Way" }),
+      {
+        type: "Work",
+        street: "2 Office Way",
+        city: "San Francisco",
+        state: null,
+        postal_code: null,
+        country: null,
+      },
     ]);
-    expect(putBody?.addresses.some((address) => "id" in address)).toBe(false);
   });
 
-  it("reports a contact that vanished before the save", async () => {
-    await expect(
-      saveContactAction(4242, EMPTY_FORM_STATE, validForm()),
-    ).resolves.toMatchObject({
-      status: "error",
-      message: "That contact has already been deleted.",
-    });
-  });
-
-  it("creates with an empty address list", async () => {
-    let postBody: ContactWrite | undefined;
+  it("echoes the address rows back when the save fails", async () => {
     server.use(
-      http.post(api("/api/v1/contacts"), async ({ request }) => {
-        postBody = (await request.json()) as ContactWrite;
-        return HttpResponse.json(makeContact({ id: 99 }), { status: 201 });
-      }),
+      http.put(api("/api/v1/contacts/:id"), () =>
+        HttpResponse.json({ detail: "Contact 1 not found" }, { status: 404 }),
+      ),
     );
 
     await expect(
-      saveContactAction(null, EMPTY_FORM_STATE, validForm()),
-    ).rejects.toThrow("redirect:/contacts/99");
-    expect(postBody?.addresses).toEqual([]);
+      saveContactAction(1, EMPTY_FORM_STATE, validForm()),
+    ).resolves.toMatchObject({
+      status: "error",
+      message: "That contact has already been deleted.",
+      addresses: [expect.objectContaining({ street: "2 Office Way" })],
+    });
+  });
+
+  it("rejects an address field over the API's limit", async () => {
+    const formData = validForm();
+    formData.set(addressFieldName(0, "postal_code"), "9".repeat(21));
+
+    await expect(
+      saveContactAction(null, EMPTY_FORM_STATE, formData),
+    ).resolves.toMatchObject({
+      status: "error",
+      message: "Postal code must be 20 characters or fewer",
+    });
   });
 });

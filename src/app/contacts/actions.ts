@@ -7,16 +7,18 @@ import {
   apiErrorMessage,
   createContact,
   deleteContact,
-  getContact,
   replaceContact,
   toFieldErrors,
 } from "@/lib/contacts/api";
 import {
+  addressInputSchema,
   contactInputSchema,
+  formDataToAddresses,
   formDataToValues,
+  isBlankAddress,
   zodFieldErrors,
 } from "@/lib/contacts/schema";
-import type { AddressInput, Contact, FormState } from "@/lib/contacts/types";
+import type { Contact, FormState } from "@/lib/contacts/types";
 
 /** Mutations for the contacts UI. Every one of these runs only on the server. */
 
@@ -31,25 +33,6 @@ const UNREACHABLE =
 const DELETED = "That contact has already been deleted.";
 
 /**
- * The address list a contact should be written with. `PUT` replaces the list
- * wholesale and treats a missing `addresses` as "clear them", so an edit must
- * send back the addresses the contact already has, minus their server ids.
- */
-async function currentAddresses(contactId: number): Promise<AddressInput[] | null> {
-  const contact = await getContact(contactId);
-  return contact
-    ? contact.addresses.map(({ type, street, city, state, postal_code, country }) => ({
-        type,
-        street,
-        city,
-        state,
-        postal_code,
-        country,
-      }))
-    : null;
-}
-
-/**
  * Create (when `contactId` is null) or fully replace a contact.
  *
  * Bind the id at the call site — `saveContactAction.bind(null, contact.id)` —
@@ -61,6 +44,9 @@ export async function saveContactAction(
   formData: FormData,
 ): Promise<FormState> {
   const values = formDataToValues(formData);
+  const addresses = formDataToAddresses(formData).filter(
+    (row) => !isBlankAddress(row),
+  );
 
   const parsed = contactInputSchema.safeParse(values);
   if (!parsed.success) {
@@ -69,23 +55,38 @@ export async function saveContactAction(
       message: "Please fix the highlighted fields.",
       fieldErrors: zodFieldErrors(parsed.error),
       values,
+      addresses,
     };
   }
 
+  const parsedAddresses = addressInputSchema.array().safeParse(addresses);
+  if (!parsedAddresses.success) {
+    return {
+      status: "error",
+      message: parsedAddresses.error.issues[0].message,
+      values,
+      addresses,
+    };
+  }
+
+  // The form always submits the full address list, prefilled from the contact,
+  // so PUT replacing the list wholesale is what the user sees on screen.
+  const body = { ...parsed.data, addresses: parsedAddresses.data };
+
   let saved: Contact;
   try {
-    if (contactId === null) {
-      saved = await createContact({ ...parsed.data, addresses: [] });
-    } else {
-      const addresses = await currentAddresses(contactId);
-      if (!addresses) return { status: "error", message: DELETED, values };
-      saved = await replaceContact(contactId, { ...parsed.data, addresses });
-    }
+    saved =
+      contactId === null
+        ? await createContact(body)
+        : await replaceContact(contactId, body);
   } catch (error) {
     if (error instanceof ApiUnreachableError) {
-      return { status: "error", message: UNREACHABLE, values };
+      return { status: "error", message: UNREACHABLE, values, addresses };
     }
     if (error instanceof ApiError) {
+      if (error.status === 404) {
+        return { status: "error", message: DELETED, values, addresses };
+      }
       if (error.status === 409) {
         return {
           status: "error",
@@ -94,6 +95,7 @@ export async function saveContactAction(
             email: apiErrorMessage(error, "This email is already in use."),
           },
           values,
+          addresses,
         };
       }
       if (error.status === 422) {
@@ -102,12 +104,14 @@ export async function saveContactAction(
           message: "The API rejected these values.",
           fieldErrors: toFieldErrors(error),
           values,
+          addresses,
         };
       }
       return {
         status: "error",
         message: apiErrorMessage(error, "The contact could not be saved."),
         values,
+        addresses,
       };
     }
     throw error;
