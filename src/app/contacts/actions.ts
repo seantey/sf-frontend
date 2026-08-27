@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { ApiError, ApiUnreachableError } from "@/lib/apiClient";
 import {
+  apiAddressErrorMessage,
   apiErrorMessage,
   createContact,
   deleteContact,
@@ -136,7 +137,8 @@ export async function saveContactAction(
       return fail({ status: "error", message: UNREACHABLE });
     }
     if (error instanceof ApiError) {
-      if (error.status === 404) {
+      // A 404 only means "gone" when we were replacing an existing contact.
+      if (error.status === 404 && contactId !== null) {
         return fail({ status: "error", message: DELETED });
       }
       if (error.status === 409) {
@@ -151,7 +153,8 @@ export async function saveContactAction(
       if (error.status === 422) {
         return fail({
           status: "error",
-          message: "The API rejected these values.",
+          message:
+            apiAddressErrorMessage(error) ?? "The API rejected these values.",
           fieldErrors: toFieldErrors(error),
         });
       }

@@ -9,6 +9,7 @@ import {
   getContact,
   getHealth,
   listContacts,
+  apiAddressErrorMessage,
   toFieldErrors,
 } from "@/lib/contacts/api";
 import type { ContactWrite } from "@/lib/contacts/types";
@@ -165,5 +166,24 @@ describe("error translation", () => {
 
   it("returns nothing for a non-validation body", () => {
     expect(toFieldErrors(new ApiError(500, "boom"))).toEqual({});
+  });
+
+  it("keeps nested address issues off the contact's own fields", () => {
+    const error = new ApiError(
+      422,
+      JSON.stringify({
+        detail: [
+          { loc: ["body", "addresses", 0, "city"], msg: "too long", type: "x" },
+          { loc: ["body", "phone"], msg: "bad phone", type: "x" },
+        ],
+      }),
+    );
+
+    expect(toFieldErrors(error)).toEqual({ phone: "bad phone" });
+    expect(apiAddressErrorMessage(error)).toBe("Address 1 city: too long");
+  });
+
+  it("has no address message when no address issue is present", () => {
+    expect(apiAddressErrorMessage(new ApiError(500, "boom"))).toBeNull();
   });
 });
