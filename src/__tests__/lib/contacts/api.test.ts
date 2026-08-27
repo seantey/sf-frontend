@@ -11,13 +11,13 @@ import {
   listContacts,
   toFieldErrors,
 } from "@/lib/contacts/api";
-import type { ContactInput } from "@/lib/contacts/types";
+import type { ContactWrite } from "@/lib/contacts/types";
 
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
-const INPUT: ContactInput = {
+const INPUT: ContactWrite = {
   first_name: "Grace",
   last_name: "Hopper",
   email: "grace@example.com",
@@ -30,6 +30,7 @@ const INPUT: ContactInput = {
   postal_code: null,
   country: null,
   notes: null,
+  addresses: [],
 };
 
 describe("listContacts", () => {

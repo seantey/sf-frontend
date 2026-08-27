@@ -5,6 +5,7 @@ import type {
   Contact,
   ContactInput,
   ContactPage,
+  ContactWrite,
   HealthResponse,
   SortField,
   SortOrder,
@@ -54,7 +55,7 @@ export async function getContact(id: number): Promise<Contact | null> {
   }
 }
 
-export async function createContact(input: ContactInput): Promise<Contact> {
+export async function createContact(input: ContactWrite): Promise<Contact> {
   return apiJson<Contact>(CONTACTS_PATH, {
     method: "POST",
     body: JSON.stringify(input),
@@ -67,7 +68,7 @@ export async function createContact(input: ContactInput): Promise<Contact> {
  */
 export async function replaceContact(
   id: number,
-  input: ContactInput,
+  input: ContactWrite,
 ): Promise<Contact> {
   return apiJson<Contact>(`${CONTACTS_PATH}/${id}`, {
     method: "PUT",
@@ -78,7 +79,7 @@ export async function replaceContact(
 /** Partial update (`PATCH`) — only the keys present are written. */
 export async function updateContact(
   id: number,
-  patch: Partial<ContactInput>,
+  patch: Partial<ContactWrite>,
 ): Promise<Contact> {
   return apiJson<Contact>(`${CONTACTS_PATH}/${id}`, {
     method: "PATCH",

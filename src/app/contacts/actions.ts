@@ -7,6 +7,7 @@ import {
   apiErrorMessage,
   createContact,
   deleteContact,
+  getContact,
   replaceContact,
   toFieldErrors,
 } from "@/lib/contacts/api";
@@ -15,7 +16,7 @@ import {
   formDataToValues,
   zodFieldErrors,
 } from "@/lib/contacts/schema";
-import type { Contact, FormState } from "@/lib/contacts/types";
+import type { AddressInput, Contact, FormState } from "@/lib/contacts/types";
 
 /** Mutations for the contacts UI. Every one of these runs only on the server. */
 
@@ -26,6 +27,27 @@ function invalidate(contactId?: number) {
 
 const UNREACHABLE =
   "Could not reach the Contacts API. Check that the backend is running.";
+
+const DELETED = "That contact has already been deleted.";
+
+/**
+ * The address list a contact should be written with. `PUT` replaces the list
+ * wholesale and treats a missing `addresses` as "clear them", so an edit must
+ * send back the addresses the contact already has, minus their server ids.
+ */
+async function currentAddresses(contactId: number): Promise<AddressInput[] | null> {
+  const contact = await getContact(contactId);
+  return contact
+    ? contact.addresses.map(({ type, street, city, state, postal_code, country }) => ({
+        type,
+        street,
+        city,
+        state,
+        postal_code,
+        country,
+      }))
+    : null;
+}
 
 /**
  * Create (when `contactId` is null) or fully replace a contact.
@@ -52,10 +74,13 @@ export async function saveContactAction(
 
   let saved: Contact;
   try {
-    saved =
-      contactId === null
-        ? await createContact(parsed.data)
-        : await replaceContact(contactId, parsed.data);
+    if (contactId === null) {
+      saved = await createContact({ ...parsed.data, addresses: [] });
+    } else {
+      const addresses = await currentAddresses(contactId);
+      if (!addresses) return { status: "error", message: DELETED, values };
+      saved = await replaceContact(contactId, { ...parsed.data, addresses });
+    }
   } catch (error) {
     if (error instanceof ApiUnreachableError) {
       return { status: "error", message: UNREACHABLE, values };
@@ -113,7 +138,7 @@ export async function deleteContactAction(
       return {
         error:
           error.status === 404
-            ? "That contact has already been deleted."
+            ? DELETED
             : apiErrorMessage(error, "The contact could not be deleted."),
       };
     }

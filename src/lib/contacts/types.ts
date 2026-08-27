@@ -45,6 +45,15 @@ export type ContactInput = Omit<
   "id" | "created_at" | "updated_at" | "full_name" | "addresses"
 >;
 
+/** `AddressCreate` — one address as sent inside a contact write. */
+export type AddressInput = Omit<Address, "id">;
+
+/**
+ * Body of `POST` / `PUT`. `PUT` replaces the whole address list, and leaving
+ * `addresses` out clears it, so every write names the full list explicitly.
+ */
+export type ContactWrite = ContactInput & { addresses: AddressInput[] };
+
 /** `ContactPage` — one page of contacts plus the totals needed to paginate. */
 export interface ContactPage {
   items: Contact[];
