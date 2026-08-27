@@ -63,8 +63,9 @@ Click a row to get here. It confirms the detail read path works end to end:
 - **Header** — avatar, name, and `Job title at Company`, with **Edit**
   (`/contacts/[id]/edit`) and a destructive **Delete** that asks before it acts.
 - **Field table** — email and phone rendered as `mailto:` / `tel:` links, then
-  company, job title, address, and notes. Empty optional fields show `—` rather
-  than collapsing, so the shape of the record stays readable.
+  company, job title, address, one row per address type (Home, Work, Other)
+  when the contact has typed addresses, and notes. Empty optional fields show
+  `—` rather than collapsing, so the shape of the record stays readable.
 - **Metadata table** — `ID`, `Created`, and `Last updated` in UTC, monospaced.
 
 Hand-editing the URL to an ID that does not exist gives you the styled 404 page

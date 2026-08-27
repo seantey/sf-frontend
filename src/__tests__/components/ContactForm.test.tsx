@@ -2,7 +2,7 @@ import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ContactForm from "@/components/contacts/ContactForm";
-import { makeContact } from "../mocks/handlers";
+import { makeAddress, makeContact } from "../mocks/handlers";
 import type { FormState } from "@/lib/contacts/types";
 
 function renderForm(action: jest.Mock, contact?: ReturnType<typeof makeContact>) {
@@ -78,6 +78,42 @@ describe("ContactForm", () => {
       "aria-invalid",
       "true",
     );
+  });
+
+  it("prefills one row per address plus a blank one, and grows on demand", async () => {
+    renderForm(
+      jest.fn(),
+      makeContact({ addresses: [makeAddress({ type: "Work" })] }),
+    );
+
+    expect(screen.getAllByLabelText(/^street$/i)).toHaveLength(2);
+    expect(screen.getAllByLabelText(/^type$/i)[0]).toHaveValue("Work");
+    expect(screen.getAllByLabelText(/^street$/i)[0]).toHaveValue("1 Market St");
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /add another address/i }),
+    );
+    expect(screen.getAllByLabelText(/^street$/i)).toHaveLength(3);
+  });
+
+  it("submits the address rows as indexed fields", async () => {
+    const action = jest.fn<Promise<FormState>, [FormState, FormData]>(
+      async () => ({ status: "idle" }),
+    );
+    renderForm(action);
+
+    await userEvent.type(screen.getByLabelText(/first name/i), "Grace");
+    await userEvent.type(screen.getByLabelText(/last name/i), "Hopper");
+    await userEvent.type(screen.getByLabelText(/^email/i), "grace@example.com");
+    await userEvent.selectOptions(screen.getByLabelText(/^type$/i), "Other");
+    await userEvent.type(screen.getByLabelText(/^street$/i), "3 Nowhere Rd");
+    await userEvent.click(screen.getByRole("button", { name: /create contact/i }));
+
+    await waitFor(() => expect(action).toHaveBeenCalled());
+
+    const formData = action.mock.calls[0][1];
+    expect(formData.get("addresses[0][type]")).toBe("Other");
+    expect(formData.get("addresses[0][street]")).toBe("3 Nowhere Rd");
   });
 
   it("offers a photo upload, and removal only when a photo exists", () => {

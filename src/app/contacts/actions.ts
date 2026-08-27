@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { ApiError, ApiUnreachableError } from "@/lib/apiClient";
 import {
+  apiAddressErrorMessage,
   apiErrorMessage,
   createContact,
   deleteContact,
@@ -13,8 +14,11 @@ import {
 } from "@/lib/contacts/api";
 import { fileToPhotoDataUrl } from "@/lib/contacts/photo";
 import {
+  addressInputSchema,
   contactInputSchema,
+  formDataToAddresses,
   formDataToValues,
+  isBlankAddress,
   zodFieldErrors,
 } from "@/lib/contacts/schema";
 import type { Contact, FormState } from "@/lib/contacts/types";
@@ -28,6 +32,8 @@ function invalidate(contactId?: number) {
 
 const UNREACHABLE =
   "Could not reach the Contacts API. Check that the backend is running.";
+
+const DELETED = "That contact has already been deleted.";
 
 type ResolvedPhoto = { photo: string | null } | { error: string };
 
@@ -84,60 +90,77 @@ export async function saveContactAction(
   formData: FormData,
 ): Promise<FormState> {
   const values = formDataToValues(formData);
+  const addresses = formDataToAddresses(formData).filter(
+    (row) => !isBlankAddress(row),
+  );
+  const fail = (state: FormState): FormState =>
+    withPhotoReminder(formData, { ...state, values, addresses });
 
   let saved: Contact;
   try {
     const photo = await resolvePhoto(formData, contactId);
     if ("error" in photo) {
-      return withPhotoReminder(formData, {
+      return fail({
         status: "error",
         message: "Please fix the highlighted fields.",
         fieldErrors: { photo: photo.error },
-        values,
       });
     }
 
     const parsed = contactInputSchema.safeParse({ ...values, photo: photo.photo });
     if (!parsed.success) {
-      return withPhotoReminder(formData, {
+      return fail({
         status: "error",
         message: "Please fix the highlighted fields.",
         fieldErrors: zodFieldErrors(parsed.error),
-        values,
       });
     }
 
+    const parsedAddresses = addressInputSchema.array().safeParse(addresses);
+    if (!parsedAddresses.success) {
+      return fail({
+        status: "error",
+        message: parsedAddresses.error.issues[0].message,
+      });
+    }
+
+    // The form always submits the full address list, prefilled from the
+    // contact, so PUT replacing the list wholesale is what the user sees.
+    const body = { ...parsed.data, addresses: parsedAddresses.data };
+
     saved =
       contactId === null
-        ? await createContact(parsed.data)
-        : await replaceContact(contactId, parsed.data);
+        ? await createContact(body)
+        : await replaceContact(contactId, body);
   } catch (error) {
     if (error instanceof ApiUnreachableError) {
-      return { status: "error", message: UNREACHABLE, values };
+      return fail({ status: "error", message: UNREACHABLE });
     }
     if (error instanceof ApiError) {
+      // A 404 only means "gone" when we were replacing an existing contact.
+      if (error.status === 404 && contactId !== null) {
+        return fail({ status: "error", message: DELETED });
+      }
       if (error.status === 409) {
-        return {
+        return fail({
           status: "error",
           message: "That email address is already taken.",
           fieldErrors: {
             email: apiErrorMessage(error, "This email is already in use."),
           },
-          values,
-        };
+        });
       }
       if (error.status === 422) {
-        return {
+        return fail({
           status: "error",
-          message: "The API rejected these values.",
+          message:
+            apiAddressErrorMessage(error) ?? "The API rejected these values.",
           fieldErrors: toFieldErrors(error),
-          values,
-        };
+        });
       }
-      return withPhotoReminder(formData, {
+      return fail({
         status: "error",
         message: apiErrorMessage(error, "The contact could not be saved."),
-        values,
       });
     }
     throw error;
@@ -168,7 +191,7 @@ export async function deleteContactAction(
       return {
         error:
           error.status === 404
-            ? "That contact has already been deleted."
+            ? DELETED
             : apiErrorMessage(error, "The contact could not be deleted."),
       };
     }

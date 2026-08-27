@@ -3,6 +3,20 @@
  * Field names stay snake_case so payloads map 1:1 onto the wire format.
  */
 
+export const ADDRESS_TYPES = ["Home", "Work", "Other"] as const;
+export type AddressType = (typeof ADDRESS_TYPES)[number];
+
+/** `AddressRead` — one of a contact's postal addresses. */
+export interface Address {
+  id: number;
+  type: AddressType;
+  street: string | null;
+  city: string | null;
+  state: string | null;
+  postal_code: string | null;
+  country: string | null;
+}
+
 /** `ContactRead` — a stored contact, as returned by every contact endpoint. */
 export interface Contact {
   id: number;
@@ -18,6 +32,8 @@ export interface Contact {
   postal_code: string | null;
   country: string | null;
   notes: string | null;
+  /** Typed postal addresses; a contact may have many. */
+  addresses: Address[];
   /** Profile picture as a base64 data URL, or null to show initials. */
   photo: string | null;
   created_at: string;
@@ -28,8 +44,17 @@ export interface Contact {
 /** Every editable field, i.e. `ContactCreate` / `ContactReplace`. */
 export type ContactInput = Omit<
   Contact,
-  "id" | "created_at" | "updated_at" | "full_name"
+  "id" | "created_at" | "updated_at" | "full_name" | "addresses"
 >;
+
+/** `AddressCreate` — one address as sent inside a contact write. */
+export type AddressInput = Omit<Address, "id">;
+
+/**
+ * Body of `POST` / `PUT`. `PUT` replaces the whole address list, and leaving
+ * `addresses` out clears it, so every write names the full list explicitly.
+ */
+export type ContactWrite = ContactInput & { addresses: AddressInput[] };
 
 /** `ContactPage` — one page of contacts plus the totals needed to paginate. */
 export interface ContactPage {
@@ -79,6 +104,11 @@ export type FormState = {
   fieldErrors?: Partial<Record<keyof ContactInput, string>>;
   /** Echo of the submitted values so the form survives a failed round trip. */
   values?: Partial<Record<keyof ContactInput, string>>;
+  /** Echo of the submitted address rows, in the order they were entered. */
+  addresses?: AddressFormValues[];
 };
+
+/** One address row as it comes off the form, before validation. */
+export type AddressFormValues = Record<keyof AddressInput, string>;
 
 export const EMPTY_FORM_STATE: FormState = { status: "idle" };

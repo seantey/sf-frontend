@@ -1,11 +1,13 @@
 import {
   addressLine,
+  addressesByType,
   avatarHue,
   formatTimestamp,
   initials,
   jobLine,
+  postalAddressLine,
 } from "@/lib/contacts/format";
-import { makeContact } from "../../mocks/handlers";
+import { makeAddress, makeContact } from "../../mocks/handlers";
 
 describe("initials", () => {
   it("takes the first letter of each name", () => {
@@ -66,5 +68,30 @@ describe("addressLine", () => {
         makeContact({ city: null, state: null, country: null, postal_code: null }),
       ),
     ).toBeNull();
+  });
+});
+
+describe("addressesByType", () => {
+  it("orders the groups Home, Work, Other and drops the empty ones", () => {
+    const work = makeAddress({ id: 1, type: "Work" });
+    const home = makeAddress({ id: 2, type: "Home" });
+    const secondHome = makeAddress({ id: 3, type: "Home" });
+
+    expect(addressesByType([work, home, secondHome])).toEqual([
+      { type: "Home", addresses: [home, secondHome] },
+      { type: "Work", addresses: [work] },
+    ]);
+  });
+
+  it("is empty for a contact with no addresses", () => {
+    expect(addressesByType([])).toEqual([]);
+  });
+});
+
+describe("postalAddressLine", () => {
+  it("reads like an envelope", () => {
+    expect(postalAddressLine(makeAddress())).toBe(
+      "1 Market St, San Francisco, CA 94105, USA",
+    );
   });
 });

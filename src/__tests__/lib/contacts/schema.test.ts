@@ -1,7 +1,10 @@
 import {
   CONTACT_FIELDS,
+  addressFieldName,
   contactInputSchema,
+  formDataToAddresses,
   formDataToValues,
+  isBlankAddress,
   zodFieldErrors,
 } from "@/lib/contacts/schema";
 
@@ -82,5 +85,22 @@ describe("formDataToValues", () => {
     expect(Object.keys(extracted).sort()).toEqual(
       CONTACT_FIELDS.map((field) => field.name).sort(),
     );
+  });
+});
+
+describe("formDataToAddresses", () => {
+  it("reads indexed rows until the first missing type", () => {
+    const formData = new FormData();
+    formData.set(addressFieldName(0, "type"), "Home");
+    formData.set(addressFieldName(0, "city"), "Paris");
+    formData.set(addressFieldName(1, "type"), "Work");
+    formData.set(addressFieldName(3, "type"), "Other");
+
+    const rows = formDataToAddresses(formData);
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ type: "Home", city: "Paris", street: "" });
+    expect(isBlankAddress(rows[0])).toBe(false);
+    expect(isBlankAddress(rows[1])).toBe(true);
   });
 });

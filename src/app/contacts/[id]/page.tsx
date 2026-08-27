@@ -7,7 +7,13 @@ import ContactAvatar from "@/components/contacts/ContactAvatar";
 import DeleteContactButton from "@/components/contacts/DeleteContactButton";
 import { buttonClasses } from "@/components/ui/Button";
 import { getContact } from "@/lib/contacts/api";
-import { addressLine, formatTimestamp, jobLine } from "@/lib/contacts/format";
+import {
+  addressLine,
+  addressesByType,
+  formatTimestamp,
+  jobLine,
+  postalAddressLine,
+} from "@/lib/contacts/format";
 
 type PageProps = { params: Promise<{ id: string }> };
 
@@ -44,6 +50,7 @@ export default async function ContactDetailPage({ params }: PageProps) {
 
   const subtitle = jobLine(contact);
   const address = addressLine(contact);
+  const addressGroups = addressesByType(contact.addresses);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-8">
@@ -103,6 +110,19 @@ export default async function ContactDetailPage({ params }: PageProps) {
         <Row label="Company">{contact.company}</Row>
         <Row label="Job title">{contact.job_title}</Row>
         <Row label="Address">{address}</Row>
+        {addressGroups.length === 0 ? (
+          <Row label="Addresses">{null}</Row>
+        ) : (
+          addressGroups.map((group) => (
+            <Row key={group.type} label={`${group.type} address`}>
+              <ul className="space-y-1">
+                {group.addresses.map((entry) => (
+                  <li key={entry.id}>{postalAddressLine(entry)}</li>
+                ))}
+              </ul>
+            </Row>
+          ))
+        )}
         <Row label="Notes">
           {contact.notes ? (
             <span className="whitespace-pre-wrap">{contact.notes}</span>

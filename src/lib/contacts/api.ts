@@ -5,6 +5,7 @@ import type {
   Contact,
   ContactInput,
   ContactPage,
+  ContactWrite,
   HealthResponse,
   SortField,
   SortOrder,
@@ -54,7 +55,7 @@ export async function getContact(id: number): Promise<Contact | null> {
   }
 }
 
-export async function createContact(input: ContactInput): Promise<Contact> {
+export async function createContact(input: ContactWrite): Promise<Contact> {
   return apiJson<Contact>(CONTACTS_PATH, {
     method: "POST",
     body: JSON.stringify(input),
@@ -67,7 +68,7 @@ export async function createContact(input: ContactInput): Promise<Contact> {
  */
 export async function replaceContact(
   id: number,
-  input: ContactInput,
+  input: ContactWrite,
 ): Promise<Contact> {
   return apiJson<Contact>(`${CONTACTS_PATH}/${id}`, {
     method: "PUT",
@@ -78,7 +79,7 @@ export async function replaceContact(
 /** Partial update (`PATCH`) — only the keys present are written. */
 export async function updateContact(
   id: number,
-  patch: Partial<ContactInput>,
+  patch: Partial<ContactWrite>,
 ): Promise<Contact> {
   return apiJson<Contact>(`${CONTACTS_PATH}/${id}`, {
     method: "PATCH",
@@ -132,10 +133,31 @@ export function toFieldErrors(
 
   const fieldErrors: Partial<Record<keyof ContactInput, string>> = {};
   for (const issue of detail) {
-    const field = issue.loc?.[issue.loc.length - 1];
+    // Only top-level fields (`["body", "<field>"]`). Nested address issues
+    // share names like `city` with the contact's own fields and must not be
+    // pinned onto them; see `apiAddressErrorMessage`.
+    if (issue.loc?.length !== 2) continue;
+    const field = issue.loc[1];
     if (typeof field === "string" && field !== "body") {
       fieldErrors[field as keyof ContactInput] ??= issue.msg;
     }
   }
   return fieldErrors;
+}
+
+/**
+ * The first 422 issue inside `addresses`, as one sentence naming the row
+ * (`["body", "addresses", 0, "city"]` becomes "Address 1 city: ...").
+ */
+export function apiAddressErrorMessage(error: ApiError): string | null {
+  const detail = error.json<{ detail?: ValidationIssue[] }>()?.detail;
+  if (!Array.isArray(detail)) return null;
+  for (const issue of detail) {
+    const [, root, index, field] = issue.loc ?? [];
+    if (root === "addresses" && typeof index === "number") {
+      const where = typeof field === "string" ? ` ${field}` : "";
+      return `Address ${index + 1}${where}: ${issue.msg}`;
+    }
+  }
+  return null;
 }

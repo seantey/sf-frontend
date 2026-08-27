@@ -1,5 +1,10 @@
 import { z } from "zod";
-import type { ContactInput } from "./types";
+import {
+  ADDRESS_TYPES,
+  type AddressFormValues,
+  type AddressInput,
+  type ContactInput,
+} from "./types";
 
 /**
  * Client/server-shared validation for the contact form.
@@ -57,6 +62,22 @@ export const contactInputSchema = z.object({
 }) satisfies z.ZodType<ContactInput, unknown>;
 
 export type ContactFormValues = z.input<typeof contactInputSchema>;
+
+export const addressInputSchema = z.object({
+  type: z.enum(ADDRESS_TYPES),
+  street: optionalText(300, "Street"),
+  city: optionalText(120, "City"),
+  state: optionalText(120, "State"),
+  postal_code: optionalText(20, "Postal code"),
+  country: optionalText(120, "Country"),
+}) satisfies z.ZodType<AddressInput, unknown>;
+
+/** A row the user left untouched apart from the type select carries nothing. */
+export function isBlankAddress(row: AddressFormValues): boolean {
+  return ADDRESS_FIELDS.every(
+    (field) => field.name === "type" || !row[field.name].trim(),
+  );
+}
 
 /** Collapse a ZodError into one message per field, keyed by input name. */
 export function zodFieldErrors(
@@ -215,6 +236,78 @@ export const CONTACT_FIELD_GROUPS: ContactFieldGroup[] = [
 export const CONTACT_FIELDS: ContactFieldSpec[] = CONTACT_FIELD_GROUPS.flatMap(
   (group) => group.fields,
 );
+
+export interface AddressFieldSpec {
+  name: keyof AddressInput;
+  label: string;
+  maxLength?: number;
+  placeholder?: string;
+  autoComplete?: string;
+}
+
+/** The columns of one address row; `type` is a select over `ADDRESS_TYPES`. */
+export const ADDRESS_FIELDS: AddressFieldSpec[] = [
+  { name: "type", label: "Type" },
+  {
+    name: "street",
+    label: "Street",
+    maxLength: 300,
+    placeholder: "1 Market St",
+    autoComplete: "street-address",
+  },
+  {
+    name: "city",
+    label: "City",
+    maxLength: 120,
+    placeholder: "San Francisco",
+    autoComplete: "address-level2",
+  },
+  {
+    name: "state",
+    label: "State / region",
+    maxLength: 120,
+    placeholder: "CA",
+    autoComplete: "address-level1",
+  },
+  {
+    name: "postal_code",
+    label: "Postal code",
+    maxLength: 20,
+    placeholder: "94105",
+    autoComplete: "postal-code",
+  },
+  {
+    name: "country",
+    label: "Country",
+    maxLength: 120,
+    placeholder: "USA",
+    autoComplete: "country-name",
+  },
+];
+
+/** Form field name for one cell of an address row, e.g. `addresses[0][city]`. */
+export function addressFieldName(index: number, field: keyof AddressInput): string {
+  return `addresses[${index}][${field}]`;
+}
+
+/**
+ * Pull the address rows out of a submitted form, as raw strings. Rows are
+ * numbered from zero; the first index without a type select ends the list.
+ */
+export function formDataToAddresses(formData: FormData): AddressFormValues[] {
+  const rows: AddressFormValues[] = [];
+  for (let index = 0; formData.has(addressFieldName(index, "type")); index += 1) {
+    rows.push(
+      Object.fromEntries(
+        ADDRESS_FIELDS.map((field) => [
+          field.name,
+          String(formData.get(addressFieldName(index, field.name)) ?? ""),
+        ]),
+      ) as AddressFormValues,
+    );
+  }
+  return rows;
+}
 
 /** Pull the contact fields out of a submitted form, as raw strings. */
 export function formDataToValues(
