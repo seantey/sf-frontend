@@ -31,6 +31,26 @@ const UNREACHABLE =
 
 type ResolvedPhoto = { photo: string | null } | { error: string };
 
+const PHOTO_RESET_NOTE =
+  "Choose the photo again: browsers clear a file choice when the form is shown again.";
+
+/**
+ * React resets uncontrolled inputs when a form action returns, and a file
+ * input cannot be refilled by code. So when a submit fails after the user
+ * chose a photo, say so; otherwise the corrected retry would silently save
+ * without it.
+ */
+function withPhotoReminder(formData: FormData, state: FormState): FormState {
+  const upload = formData.get("photo_file");
+  if (!(upload instanceof File && upload.size > 0) || state.fieldErrors?.photo) {
+    return state;
+  }
+  return {
+    ...state,
+    fieldErrors: { ...state.fieldErrors, photo: PHOTO_RESET_NOTE },
+  };
+}
+
 /**
  * Decide which photo the saved contact ends up with. A new upload wins; the
  * "Remove photo" box clears it; otherwise an existing contact keeps what it
@@ -69,22 +89,22 @@ export async function saveContactAction(
   try {
     const photo = await resolvePhoto(formData, contactId);
     if ("error" in photo) {
-      return {
+      return withPhotoReminder(formData, {
         status: "error",
         message: "Please fix the highlighted fields.",
         fieldErrors: { photo: photo.error },
         values,
-      };
+      });
     }
 
     const parsed = contactInputSchema.safeParse({ ...values, photo: photo.photo });
     if (!parsed.success) {
-      return {
+      return withPhotoReminder(formData, {
         status: "error",
         message: "Please fix the highlighted fields.",
         fieldErrors: zodFieldErrors(parsed.error),
         values,
-      };
+      });
     }
 
     saved =
@@ -114,11 +134,11 @@ export async function saveContactAction(
           values,
         };
       }
-      return {
+      return withPhotoReminder(formData, {
         status: "error",
         message: apiErrorMessage(error, "The contact could not be saved."),
         values,
-      };
+      });
     }
     throw error;
   }
