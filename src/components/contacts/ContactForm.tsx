@@ -5,6 +5,7 @@ import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import { AlertCircle, Loader2, Plus } from "lucide-react";
 import Field, { CONTROL } from "@/components/ui/Field";
+import PhotoField from "./PhotoField";
 import Button, { buttonClasses } from "@/components/ui/Button";
 import {
   ADDRESS_FIELDS,
@@ -206,6 +207,8 @@ export default function ContactForm({
           Add another address
         </Button>
       </fieldset>
+
+      <PhotoField contact={contact} error={state.fieldErrors?.photo} />
 
       <div className="flex items-center gap-2 border-t border-hairline pt-4">
         <SubmitButton label={submitLabel} />

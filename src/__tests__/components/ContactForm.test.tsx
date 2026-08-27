@@ -116,6 +116,23 @@ describe("ContactForm", () => {
     expect(formData.get("addresses[0][street]")).toBe("3 Nowhere Rd");
   });
 
+  it("offers a photo upload, and removal only when a photo exists", () => {
+    const { rerender } = renderForm(jest.fn());
+    expect(screen.getByLabelText(/upload photo/i)).toHaveAttribute("type", "file");
+    expect(screen.queryByLabelText(/remove photo/i)).toBeNull();
+
+    rerender(
+      <ContactForm
+        action={jest.fn() as never}
+        contact={makeContact({ photo: "data:image/png;base64,iVBORw0KGgo=" })}
+        submitLabel="Save changes"
+        cancelHref="/contacts/1"
+      />,
+    );
+    expect(screen.getByLabelText(/replace photo/i)).toHaveAttribute("type", "file");
+    expect(screen.getByLabelText(/remove photo/i)).not.toBeChecked();
+  });
+
   it("links back out without submitting", () => {
     renderForm(jest.fn());
     expect(screen.getByRole("link", { name: /cancel/i })).toHaveAttribute(

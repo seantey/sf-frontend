@@ -31,6 +31,7 @@ const INPUT: ContactWrite = {
   country: null,
   notes: null,
   addresses: [],
+  photo: null,
 };
 
 describe("listContacts", () => {

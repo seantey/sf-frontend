@@ -34,6 +34,8 @@ export interface Contact {
   notes: string | null;
   /** Typed postal addresses; a contact may have many. */
   addresses: Address[];
+  /** Profile picture as a base64 data URL, or null to show initials. */
+  photo: string | null;
   created_at: string;
   updated_at: string;
   full_name: string;

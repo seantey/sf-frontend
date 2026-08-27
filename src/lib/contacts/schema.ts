@@ -57,6 +57,8 @@ export const contactInputSchema = z.object({
     .transform((value) => value || null)
     .nullable()
     .default(null),
+  // Set by the server action from the uploaded file, never typed by the user.
+  photo: z.string().nullable().default(null),
 }) satisfies z.ZodType<ContactInput, unknown>;
 
 export type ContactFormValues = z.input<typeof contactInputSchema>;
