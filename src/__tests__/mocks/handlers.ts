@@ -1,10 +1,23 @@
 import { http, HttpResponse } from "msw";
 import { apiBaseUrl } from "@/lib/apiClient";
-import type { Contact, ContactPage } from "@/lib/contacts/types";
+import type { Address, Contact, ContactPage } from "@/lib/contacts/types";
 
 /** Prefix a path with the configured API base so handlers match apiClient URLs. */
 export function api(path: string): string {
   return `${apiBaseUrl}${path}`;
+}
+
+export function makeAddress(overrides: Partial<Address> = {}): Address {
+  return {
+    id: 1,
+    type: "Home",
+    street: "1 Market St",
+    city: "San Francisco",
+    state: "CA",
+    postal_code: "94105",
+    country: "USA",
+    ...overrides,
+  };
 }
 
 export function makeContact(overrides: Partial<Contact> = {}): Contact {
